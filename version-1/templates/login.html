@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Face Authentication</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .camera-container {
+            position: relative;
+            width: 640px;
+            height: 480px;
+            margin: 20px auto;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        #video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .status-message {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            font-weight: bold;
+        }
+        .status-success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status-error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .status-warning {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        .face-overlay {
+            position: absolute;
+            border: 2px solid #00ff00;
+            border-radius: 5px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">Face Authentication</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/register">Register</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/login">Login</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/history">History</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h2 class="text-center mb-4">Face Login</h2>
+        <div class="camera-container">
+            <img id="video" src="/video_feed" alt="RTSP Stream">
+            <div id="faceOverlay" class="face-overlay"></div>
+        </div>
+        <div id="statusMessage" class="status-message" style="display: none;"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let video = document.getElementById('video');
+        let statusMessage = document.getElementById('statusMessage');
+        let faceOverlay = document.getElementById('faceOverlay');
+        let isAuthenticating = false;
+        let lastAuthTime = 0;
+        const AUTH_INTERVAL = 2000; // 2 seconds between authentication attempts
+
+        // Show status message
+        function showStatus(message, type) {
+            statusMessage.textContent = message;
+            statusMessage.className = 'status-message status-' + type;
+            statusMessage.style.display = 'block';
+        }
+
+        // Update face overlay position
+        function updateFaceOverlay(x, y, width, height) {
+            faceOverlay.style.display = 'block';
+            faceOverlay.style.left = x + 'px';
+            faceOverlay.style.top = y + 'px';
+            faceOverlay.style.width = width + 'px';
+            faceOverlay.style.height = height + 'px';
+        }
+
+        // Hide face overlay
+        function hideFaceOverlay() {
+            faceOverlay.style.display = 'none';
+        }
+
+        // Authenticate user
+        async function authenticate() {
+            if (isAuthenticating) return;
+            
+            const now = Date.now();
+            if (now - lastAuthTime < AUTH_INTERVAL) return;
+            
+            isAuthenticating = true;
+            lastAuthTime = now;
+
+            try {
+                const response = await fetch('/authenticate');
+                const data = await response.json();
+                
+                if (data.status === "Access Granted") {
+                    showStatus('Access Granted! Welcome, ' + data.user, 'success');
+                    // Redirect to home page after successful login
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 2000);
+                } else if (data.status === "No face detected") {
+                    showStatus('No face detected. Please position yourself in front of the camera.', 'warning');
+                    hideFaceOverlay();
+                } else {
+                    showStatus('Access Denied - Unauthorized', 'error');
+                    hideFaceOverlay();
+                }
+            } catch (error) {
+                showStatus('Error during authentication: ' + error.message, 'error');
+            } finally {
+                isAuthenticating = false;
+            }
+        }
+
+        // Start authentication loop
+        function startAuthentication() {
+            // Check for faces every 500ms
+            setInterval(async () => {
+                if (!isAuthenticating) {
+                    await authenticate();
+                }
+            }, 500);
+        }
+
+        // Initialize
+        showStatus('Camera initialized. Looking for faces...', 'warning');
+        startAuthentication();
+    </script>
+</body>
+</html> 

@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Registration</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        .registration-tabs {
+            margin-bottom: 20px;
+        }
+        .preview-image {
+            max-width: 200px;
+            max-height: 200px;
+            margin-top: 10px;
+        }
+        .batch-item {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 5px;
+        }
+        .batch-item:hover {
+            background-color: #f8f9fa;
+        }
+        .remove-item {
+            color: #dc3545;
+            cursor: pointer;
+        }
+        .remove-item:hover {
+            color: #bd2130;
+        }
+        .drag-handle {
+            cursor: move;
+            color: #6c757d;
+        }
+        .drag-handle:hover {
+            color: #495057;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">FaceAuth</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" aria-current="page" href="/register">Register</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/login">Login</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/history">History</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h1 class="mb-4">Register New User</h1>
+        
+        <!-- Registration Type Tabs -->
+        <ul class="nav nav-tabs registration-tabs" id="registrationTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="single-tab" data-bs-toggle="tab" data-bs-target="#single" type="button" role="tab">Single Registration</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="batch-tab" data-bs-toggle="tab" data-bs-target="#batch" type="button" role="tab">Batch Registration</button>
+            </li>
+        </ul>
+
+        <!-- Tab Content -->
+        <div class="tab-content" id="registrationTabContent">
+            <!-- Single Registration Form -->
+            <div class="tab-pane fade show active" id="single" role="tabpanel">
+                <form id="singleRegistrationForm" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Name</label>
+                        <input type="text" class="form-control" id="name" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email address</label>
+                        <input type="email" class="form-control" id="email" name="email" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="photo" class="form-label">Upload Photo</label>
+                        <input type="file" class="form-control" id="photo" name="photo" accept="image/*" required>
+                        <img id="photoPreview" class="preview-image" style="display: none;">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Register</button>
+                </form>
+            </div>
+
+            <!-- Batch Registration Form -->
+            <div class="tab-pane fade" id="batch" role="tabpanel">
+                <form id="batchRegistrationForm" enctype="multipart/form-data">
+                    <div id="batchItems">
+                        <!-- Batch items will be added here -->
+                    </div>
+                    <button type="button" class="btn btn-secondary mb-3" id="addBatchItem">
+                        <i class="bi bi-plus-circle"></i> Add User
+                    </button>
+                    <button type="submit" class="btn btn-primary">Register All</button>
+                </form>
+            </div>
+        </div>
+        
+        <div id="statusMessage" class="mt-3" style="display: none;"></div>
+    </div>
+
+    <!-- Batch Item Template -->
+    <template id="batchItemTemplate">
+        <div class="batch-item">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <div class="drag-handle">
+                    <i class="bi bi-grip-vertical"></i>
+                </div>
+                <div class="remove-item">
+                    <i class="bi bi-x-circle"></i>
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Name</label>
+                <input type="text" class="form-control" name="name" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Email address</label>
+                <input type="email" class="form-control" name="email" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Upload Photo</label>
+                <input type="file" class="form-control" name="photo" accept="image/*" required>
+                <img class="preview-image" style="display: none;">
+            </div>
+        </div>
+    </template>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js"></script>
+    <script>
+        // Single Registration Form Handler
+        document.getElementById('singleRegistrationForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+
+            const name = document.getElementById('name').value;
+            const email = document.getElementById('email').value;
+            const photoFile = document.getElementById('photo').files[0];
+            const statusMessageDiv = document.getElementById('statusMessage');
+
+            if (!photoFile) {
+                showStatus('Please select a photo to upload.', 'warning');
+                return;
+            }
+
+            // Validate file type
+            if (!photoFile.type.startsWith('image/')) {
+                showStatus('Please select a valid image file.', 'warning');
+                return;
+            }
+
+            // Validate file size (max 5MB)
+            if (photoFile.size > 5 * 1024 * 1024) {
+                showStatus('Image size should be less than 5MB.', 'warning');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('name', name);
+            formData.append('email', email);
+            formData.append('photo', photoFile);
+
+            showStatus('Registering user...', 'info');
+
+            try {
+                const response = await fetch('/register', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    showStatus(result.message, 'success');
+                    document.getElementById('singleRegistrationForm').reset();
+                    document.getElementById('photoPreview').style.display = 'none';
+                } else {
+                    // Enhanced error handling for single registration
+                    let displayMessage = 'Registration failed.';
+                    let messageType = 'danger';
+
+                    if (result && typeof result.detail === 'string') {
+                         displayMessage = `Registration failed: ${result.detail}`;
+                    }
+
+                    // Check for specific error details
+                    if (result && typeof result.detail === 'string') {
+                        if (result.detail.includes('face is already registered')) {
+                            displayMessage = `<div class="d-flex align-items-center">
+                                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                <div>
+                                    <strong>Duplicate Face Detected!</strong><br>
+                                    This face is already registered in the system. Please use a different photo or contact the administrator if you believe this is an error.
+                                </div>
+                            </div>`;
+                            messageType = 'warning';
+                        } else if (result.detail.includes('email is already registered')) {
+                            displayMessage = `<div class="d-flex align-items-center">
+                                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                <div>
+                                    <strong>Email Already Registered!</strong><br>
+                                    This email address is already registered in the system. Please use a different email address.
+                                </div>
+                            </div>`;
+                            messageType = 'warning';
+                        } else if (result.detail.includes('No face detected')) {
+                            displayMessage = `<div class="d-flex align-items-center">
+                                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                <div>
+                                    <strong>No Face Detected!</strong><br>
+                                    Please make sure the photo contains a clear, front-facing image of a face.
+                                </div>
+                            </div>`;
+                            messageType = 'warning';
+                        } else if (result.detail.includes('Error saving user data to database')) {
+                             displayMessage = `<div class="d-flex align-items-center">
+                                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                <div>
+                                    <strong>Database Error!</strong><br>
+                                    There was an error saving user data to the database for this entry. Please check logs for details.
+                                </div>
+                            </div>`;
+                             messageType = 'danger';
+                        }
+                    }
+                     // Fallback for generic errors or unexpected response structures
+                    if (displayMessage === 'Registration failed.' && result) {
+                         displayMessage += ': ' + (typeof result === 'object' ? JSON.stringify(result, null, 2) : result);
+                    }
+
+                    showStatus(displayMessage, messageType);
+                }
+            } catch (error) {
+                console.error('Error during registration:', error);
+                showStatus('An error occurred during registration. Please try again.', 'danger');
+            }
+        });
+
+        // Photo Preview for Single Registration
+        document.getElementById('photo').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const preview = document.getElementById('photoPreview');
+                    preview.src = e.target.result;
+                    preview.style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Batch Registration Form Handler
+        const batchItemsContainer = document.getElementById('batchItems');
+        const batchItemTemplate = document.getElementById('batchItemTemplate');
+        let batchItemCount = 0;
+
+        // Initialize Sortable
+        new Sortable(batchItemsContainer, {
+            handle: '.drag-handle',
+            animation: 150
+        });
+
+        // Add Batch Item
+        document.getElementById('addBatchItem').addEventListener('click', function() {
+            const clone = batchItemTemplate.content.cloneNode(true);
+            const batchItem = clone.querySelector('.batch-item');
+            batchItem.dataset.index = batchItemCount++;
+            
+            // Add remove functionality
+            batchItem.querySelector('.remove-item').addEventListener('click', function() {
+                batchItem.remove();
+            });
+
+            // Add photo preview functionality
+            const photoInput = batchItem.querySelector('input[type="file"]');
+            const preview = batchItem.querySelector('.preview-image');
+            photoInput.addEventListener('change', function(event) {
+                const file = event.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        preview.src = e.target.result;
+                        preview.style.display = 'block';
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+
+            batchItemsContainer.appendChild(batchItem);
+        });
+
+        // Batch Registration Form Submit
+        document.getElementById('batchRegistrationForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+
+            const batchItems = document.querySelectorAll('.batch-item');
+            if (batchItems.length === 0) {
+                showStatus('Please add at least one user to register.', 'warning');
+                return;
+            }
+
+            const users = [];
+            let hasError = false;
+
+            for (const item of batchItems) {
+                const name = item.querySelector('input[name="name"]').value;
+                const email = item.querySelector('input[name="email"]').value;
+                const photo = item.querySelector('input[name="photo"]').files[0];
+
+                if (!name || !email || !photo) {
+                    showStatus('Please fill in all fields for each user.', 'warning');
+                    return;
+                }
+
+                // Validate file type
+                if (!photo.type.startsWith('image/')) {
+                    showStatus(`Invalid file type for ${email}. Please select a valid image file.`, 'warning');
+                    return;
+                }
+
+                // Validate file size (max 5MB)
+                if (photo.size > 5 * 1024 * 1024) {
+                    showStatus(`Image size for ${email} should be less than 5MB.`, 'warning');
+                    return;
+                }
+
+                users.push({
+                    name: name,
+                    email: email,
+                    photo: photo
+                });
+            }
+
+            showStatus('Registering users...', 'info');
+
+            try {
+                const results = [];
+                for (const user of users) {
+                    const userFormData = new FormData();
+                    userFormData.append('name', user.name);
+                    userFormData.append('email', user.email);
+                    userFormData.append('photo', user.photo);
+
+                    try {
+                        const response = await fetch('/register', {
+                            method: 'POST',
+                            body: userFormData
+                        });
+
+                        const result = await response.json();
+                        let status = response.ok ? 'success' : 'failed';
+                        let message = response.ok ? result.message : result.detail;
+
+                        // Enhanced error messages for batch registration
+                        if (!response.ok) {
+                            if (result.detail && result.detail.includes('face is already registered')) {
+                                message = `<div class="d-flex align-items-center">
+                                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                    <div>
+                                        <strong>Duplicate Face Detected!</strong><br>
+                                        This face is already registered in the system.
+                                    </div>
+                                </div>`;
+                            } else if (result.detail && result.detail.includes('email is already registered')) {
+                                message = `<div class="d-flex align-items-center">
+                                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                    <div>
+                                        <strong>Email Already Registered!</strong><br>
+                                        This email address is already registered in the system.
+                                    </div>
+                                </div>`;
+                            } else if (result.detail && result.detail.includes('No face detected')) {
+                                message = `<div class="d-flex align-items-center">
+                                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                    <div>
+                                        <strong>No Face Detected!</strong><br>
+                                        Please make sure the photo contains a clear, front-facing image of a face.
+                                    </div>
+                                </div>`;
+                            } else if (result.detail && result.detail.includes('Error saving user data to database')) {
+                                message = `<div class="d-flex align-items-center">
+                                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                    <div>
+                                        <strong>Database Error!</strong><br>
+                                        There was an error saving user data to the database for this entry. Please check logs for details.
+                                    </div>
+                                </div>`;
+                            } else {
+                                message = `Registration failed: ${result.detail || JSON.stringify(result)}`;
+                            }
+                        }
+
+                        results.push({
+                            email: user.email,
+                            status: status,
+                            message: message
+                        });
+                    } catch (error) {
+                        console.error(`Error processing user ${user.email}:`, error);
+                        results.push({
+                            email: user.email,
+                            status: 'failed',
+                            message: 'An error occurred while processing this user.'
+                        });
+                        hasError = true;
+                    }
+                }
+
+                // Show results with enhanced formatting
+                const successCount = results.filter(r => r.status === 'success').length;
+                const failCount = results.filter(r => r.status === 'failed').length;
+                
+                let message = `<div class="mb-2">
+                    <strong>Registration Summary:</strong><br>
+                    <span class="text-success">✓ ${successCount} succeeded</span><br>
+                    <span class="text-danger">✗ ${failCount} failed</span>
+                </div>`;
+                
+                results.forEach(r => {
+                    const statusIcon = r.status === 'success' ? 
+                        '<i class="bi bi-check-circle-fill text-success me-2"></i>' : 
+                        '<i class="bi bi-x-circle-fill text-danger me-2"></i>';
+                    
+                    // Handle potential object messages in batch results
+                    let resultMessage = r.message;
+                    if (typeof resultMessage === 'object' && resultMessage !== null) {
+                        try {
+                             resultMessage = JSON.stringify(resultMessage, null, 2); // Pretty print JSON
+                        } catch (e) {
+                             resultMessage = 'Error: Could not display result details.';
+                        }
+                    }
+
+                    message += `<div class="mt-2">${statusIcon}${r.email}: ${resultMessage}</div>`;
+                });
+
+                showStatus(message, failCount === 0 ? 'success' : 'warning');
+                
+                if (successCount > 0) {
+                    document.getElementById('batchRegistrationForm').reset();
+                    batchItemsContainer.innerHTML = '';
+                    batchItemCount = 0;
+                }
+            } catch (error) {
+                console.error('Error during batch registration:', error);
+                showStatus('An error occurred during batch registration. Please try again.', 'danger');
+            }
+        });
+
+        // Helper function to show status messages
+        function showStatus(message, type) {
+            const statusMessageDiv = document.getElementById('statusMessage');
+            // Check if the message is an object or array and format it
+            if (typeof message === 'object') {
+                try {
+                    message = JSON.stringify(message, null, 2); // Pretty print JSON
+                } catch (e) {
+                    message = 'Error: Could not display error details.';
+                }
+            }
+            statusMessageDiv.innerHTML = message;
+            statusMessageDiv.className = `mt-3 alert alert-${type}`;
+            statusMessageDiv.style.display = 'block';
+            
+            // Scroll to the status message
+            statusMessageDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        // Add first batch item on tab switch
+        document.getElementById('batch-tab').addEventListener('shown.bs.tab', function() {
+            if (batchItemCount === 0) {
+                document.getElementById('addBatchItem').click();
+            }
+        });
+    </script>
+</body>
+</html> 

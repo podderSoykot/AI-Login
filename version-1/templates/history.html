@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login History</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .history-card {
+            margin-bottom: 15px;
+        }
+        .status-granted {
+            color: green;
+            font-weight: bold;
+        }
+        .status-denied {
+            color: red;
+            font-weight: bold;
+        }
+        .card-img-container {
+            width: 150px;
+            height: 150px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #e9e9e9;
+        }
+        .card-img-container img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">FaceAuth</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/register">Register</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" aria-current="page" href="/login">Login</a>
+                    </li>
+                     <li class="nav-item">
+                        <a class="nav-link" href="/history">History</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h1 class="mb-4">Login History</h1>
+        <div id="history-list" class="row">
+            <!-- History items will be loaded here by JavaScript -->
+        </div>
+         <div id="loading" class="text-center mt-4">
+            Loading history...
+        </div>
+         <div id="error" class="text-center text-danger mt-4" style="display: none;">
+            Failed to load history. Please try again later.
+        </div>
+         <div id="no-history" class="text-center mt-4" style="display: none;">
+            No login history available.
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            loadHistory();
+        });
+
+        function loadHistory() {
+            fetch('/api/history')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok ' + response.statusText);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    document.getElementById('loading').style.display = 'none';
+                    const historyList = document.getElementById('history-list');
+                    if (data.length === 0) {
+                         document.getElementById('no-history').style.display = 'block';
+                        return;
+                    }
+                    data.forEach(record => {
+                        const colDiv = document.createElement('div');
+                        colDiv.className = 'col-md-6 col-lg-4';
+
+                        const cardDiv = document.createElement('div');
+                        cardDiv.className = 'card history-card';
+
+                        const cardBodyDiv = document.createElement('div');
+                        cardBodyDiv.className = 'card-body';
+
+                        const statusSpan = document.createElement('span');
+                        statusSpan.textContent = record.status;
+                        statusSpan.className = record.status === 'Granted' ? 'status-granted' : 'status-denied';
+                        
+                        const title = document.createElement('h5');
+                        title.className = 'card-title';
+                        title.textContent = `Login Attempt - Status: `;
+                         title.appendChild(statusSpan);
+
+
+                        const name = document.createElement('p');
+                        name.className = 'card-text';
+                        name.textContent = `User: ${record.name}`;
+
+                        const time = document.createElement('p');
+                        time.className = 'card-text';
+                        const date = new Date(record.login_time);
+                        time.textContent = `Time: ${date.toLocaleString()}`;
+
+                        // Add Camera Info
+                        const cameraInfo = document.createElement('p');
+                        cameraInfo.className = 'card-text small text-muted';
+                        let cameraText = `Camera ID: ${record.camera_id || 'N/A'}`;
+                        if (record.camera_location) {
+                            cameraText += ` (Location: ${record.camera_location})`;
+                        }
+                        cameraInfo.textContent = cameraText;
+
+                        const registeredImageContainer = document.createElement('div');
+                        registeredImageContainer.className = 'card-img-container mb-2';
+                        const registeredImage = document.createElement('img');
+                        if (record.registered_image) {
+                            registeredImage.src = `data:image/jpeg;base64,${record.registered_image}`;
+                            registeredImage.alt = 'Registered Image';
+                        } else {
+                             // Display a placeholder or default image if no registered image
+                            registeredImage.src = '/static/placeholder.jpg'; // Assuming you have a placeholder image
+                            registeredImage.alt = 'No Registered Image';
+                        }
+                        registeredImageContainer.appendChild(registeredImage);
+
+
+                        const liveCaptureContainer = document.createElement('div');
+                         liveCaptureContainer.className = 'card-img-container';
+                        const liveCapture = document.createElement('img');
+                        liveCapture.src = `data:image/jpeg;base64,${record.live_capture}`;
+                        liveCapture.alt = 'Live Capture';
+                         liveCaptureContainer.appendChild(liveCapture);
+
+                        cardBodyDiv.appendChild(title);
+                        cardBodyDiv.appendChild(name);
+                        cardBodyDiv.appendChild(time);
+                        cardBodyDiv.appendChild(cameraInfo);
+                        cardBodyDiv.appendChild(document.createElement('h6')).textContent = 'Registered Image:';
+                        cardBodyDiv.appendChild(registeredImageContainer);
+                         cardBodyDiv.appendChild(document.createElement('h6')).textContent = 'Live Capture:';
+                         cardBodyDiv.appendChild(liveCaptureContainer);
+
+
+                        cardDiv.appendChild(cardBodyDiv);
+                        colDiv.appendChild(cardDiv);
+                        historyList.appendChild(colDiv);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error loading history:', error);
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('error').style.display = 'block';
+                });
+        }
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html> 
