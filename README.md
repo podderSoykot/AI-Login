@@ -1,4 +1,4 @@
-# Face Authentication System
+# AI Login
 
 A face recognition-based authentication system with multi-camera support.
 
