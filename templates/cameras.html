@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camera Management</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        .camera-entry {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .camera-entry:last-child {
+            border-bottom: none;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">FaceAuth</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/register">Register</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/login">Login</a>
+                    </li>
+                     <li class="nav-item">
+                        <a class="nav-link" href="/history">History</a>
+                    </li>
+                     <li class="nav-item">
+                        <a class="nav-link active" aria-current="page" href="/cameras">Cameras</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h1 class="mb-4">Camera Management</h1>
+
+        <div class="card mb-4">
+            <div class="card-header">Add New Camera</div>
+            <div class="card-body">
+                <form id="addCameraForm">
+                    <div class="mb-3">
+                        <label for="cameraId" class="form-label">Camera ID</label>
+                        <input type="text" class="form-control" id="cameraId" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="rtspUrl" class="form-label">RTSP URL</label>
+                        <input type="text" class="form-control" id="rtspUrl" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Add Camera</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">Configured Cameras</div>
+            <div class="card-body">
+                <div id="cameraList">
+                    <!-- Camera entries will be loaded here by JavaScript -->
+                    <div class="text-center text-muted">Loading cameras...</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="statusMessage" class="mt-3" style="display: none;"></div>
+
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const addCameraForm = document.getElementById('addCameraForm');
+        const cameraListDiv = document.getElementById('cameraList');
+        const statusMessageDiv = document.getElementById('statusMessage');
+
+        // Helper function to show status messages
+        function showStatus(message, type) {
+            statusMessageDiv.innerHTML = message;
+            statusMessageDiv.className = `mt-3 alert alert-${type}`;
+            statusMessageDiv.style.display = 'block';
+             statusMessageDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        // Function to load cameras from the backend
+        async function loadCameras() {
+            cameraListDiv.innerHTML = '<div class="text-center text-muted">Loading cameras...</div>';
+            try {
+                const response = await fetch('/api/cameras');
+                const cameras = await response.json();
+
+                cameraListDiv.innerHTML = ''; // Clear loading message
+                if (Object.keys(cameras).length === 0) {
+                    cameraListDiv.innerHTML = '<div class="text-center text-muted">No cameras configured yet.</div>';
+                } else {
+                    for (const [id, url] of Object.entries(cameras)) {
+                        const cameraEntry = document.createElement('div');
+                        cameraEntry.className = 'camera-entry';
+                        cameraEntry.innerHTML = `
+                            <div>
+                                <strong>${id}:</strong> ${url}
+                            </div>
+                            <div>
+                                <button class="btn btn-danger btn-sm delete-camera" data-camera-id="${id}">
+                                    <i class="bi bi-trash"></i> Delete
+                                </button>
+                            </div>
+                        `;
+                        cameraListDiv.appendChild(cameraEntry);
+                    }
+                     // Add event listeners for delete buttons
+                    document.querySelectorAll('.delete-camera').forEach(button => {
+                        button.addEventListener('click', handleDeleteCamera);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading cameras:', error);
+                cameraListDiv.innerHTML = '<div class="text-center text-danger">Error loading cameras.</div>';
+            }
+        }
+
+        // Function to handle adding a new camera
+        addCameraForm.addEventListener('submit', async function(event) {
+            event.preventDefault();
+
+            const cameraId = document.getElementById('cameraId').value;
+            const rtspUrl = document.getElementById('rtspUrl').value;
+
+            showStatus('Adding camera...', 'info');
+
+            try {
+                const response = await fetch('/api/cameras', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ camera_id: cameraId, rtsp_url: rtspUrl })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    showStatus(result.message, 'success');
+                    addCameraForm.reset();
+                    loadCameras(); // Reload the list after adding
+                } else {
+                    showStatus(`Error adding camera: ${result.detail || JSON.stringify(result)}`, 'danger');
+                }
+            } catch (error) {
+                console.error('Error adding camera:', error);
+                showStatus('An error occurred while adding the camera.', 'danger');
+            }
+        });
+
+        // Function to handle deleting a camera
+        async function handleDeleteCamera(event) {
+            const cameraId = event.target.dataset.cameraId;
+            if (!confirm(`Are you sure you want to delete camera "${cameraId}"?`)) {
+                return;
+            }
+
+             showStatus(`Deleting camera "${cameraId}"...`, 'info');
+
+            try {
+                const response = await fetch(`/api/cameras/${cameraId}`, {
+                    method: 'DELETE'
+                });
+
+                 const result = await response.json();
+
+                if (response.ok) {
+                    showStatus(result.message, 'success');
+                    loadCameras(); // Reload the list after deleting
+                } else {
+                    showStatus(`Error deleting camera: ${result.detail || JSON.stringify(result)}`, 'danger');
+                }
+
+            } catch (error) {
+                console.error('Error deleting camera:', error);
+                showStatus('An error occurred while deleting the camera.', 'danger');
+            }
+        }
+
+
+        // Load cameras when the page loads
+        loadCameras();
+
+    </script>
+</body>
+</html> 

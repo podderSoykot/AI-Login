@@ -1,0 +1,235 @@
+from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.requests import Request
+import cv2
+import numpy as np
+import face_recognition
+import base64
+from datetime import datetime
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, LargeBinary
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+import threading
+import queue
+import time
+import uvicorn
+import os
+from fastapi import Form
+
+# ───── Optional: Improve H264 decoder handling ─────
+os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "video_codec;h264_cuvid"
+
+# ─── Database Setup ─────────────────────────────────────────────
+Base = declarative_base()
+engine = create_engine('sqlite:///face_auth.db')
+Session = sessionmaker(bind=engine)
+
+class User(Base):
+    __tablename__ = 'users'
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), nullable=False)
+    email = Column(String(100), unique=True, nullable=False)
+    photo = Column(LargeBinary, nullable=False)
+
+class LoginHistory(Base):
+    __tablename__ = 'login_history'
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, nullable=False)
+    name = Column(String(100), nullable=False)
+    login_time = Column(DateTime, default=datetime.utcnow)
+    registered_image = Column(LargeBinary, nullable=False)
+    live_capture = Column(LargeBinary, nullable=False)
+    status = Column(String(20), nullable=False)
+
+Base.metadata.create_all(engine)
+
+# ─── FastAPI Setup ─────────────────────────────────────────────
+app = FastAPI(title="Face Authentication System")
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+templates = Jinja2Templates(directory="templates")
+
+# ─── Camera RTSP Stream Setup ──────────────────────────────────
+rtsp_url = "rtsp://admin:qwq1234.@192.168.8.110/channel=1/subtype=0"
+frame_queue = queue.Queue(maxsize=1)
+stop_event = threading.Event()
+
+def camera_thread():
+    cap = cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
+    if not cap.isOpened():
+        print("❌ Failed to open RTSP stream")
+        return
+    print("✅ RTSP stream opened successfully")
+
+    while not stop_event.is_set():
+        try:
+            ret, frame = cap.read()
+            if ret and frame is not None:
+                if not frame_queue.empty():
+                    frame_queue.get_nowait()
+                frame_queue.put(frame)
+            else:
+                print("⚠️ Frame read failed, retrying...")
+        except cv2.error as e:
+            print(f"❗ OpenCV error: {str(e)}")
+        except Exception as ex:
+            print(f"❗ Unexpected error: {ex}")
+        time.sleep(0.03)
+
+    cap.release()
+
+
+threading.Thread(target=camera_thread, daemon=True).start()
+
+def get_latest_frame(wait_time=5):
+    """Wait up to wait_time seconds for the first frame"""
+    start = time.time()
+    while time.time() - start < wait_time:
+        try:
+            return frame_queue.get(timeout=1)
+        except queue.Empty:
+            print("⚠️ Waiting for RTSP frame...")
+    print("❌ Timeout: No frame received from RTSP stream")
+    return None
+
+@app.on_event("startup")
+async def wait_for_camera():
+    print("⏳ Waiting for camera warm-up...")
+    time.sleep(5)
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    stop_event.set()
+
+# ─── Routes ────────────────────────────────────────────────────
+@app.get("/", response_class=HTMLResponse)
+async def home(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
+
+@app.get("/register", response_class=HTMLResponse)
+async def register_page(request: Request):
+    return templates.TemplateResponse("register.html", {"request": request})
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    return templates.TemplateResponse("login.html", {"request": request})
+
+@app.get("/history", response_class=HTMLResponse)
+async def history_page(request: Request):
+    return templates.TemplateResponse("history.html", {"request": request})
+
+@app.get("/video_feed")
+async def video_feed():
+    def stream():
+        while True:
+            frame = get_latest_frame()
+            if frame is not None:
+                _, buffer = cv2.imencode('.jpg', frame)
+                yield (b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+            time.sleep(0.05)
+    return StreamingResponse(stream(), media_type="multipart/x-mixed-replace; boundary=frame")
+
+@app.post("/register")
+async def register_user(
+    name: str = Form(...),
+    email: str = Form(...),
+    photo: UploadFile = File(...)
+):
+    try:
+        contents = await photo.read()
+        npimg = np.frombuffer(contents, np.uint8)
+        img = cv2.imdecode(npimg, cv2.IMREAD_COLOR)
+
+        if img is None:
+            raise ValueError("Uploaded file is not a valid image.")
+
+        _, buffer = cv2.imencode('.jpg', img)
+
+        session = Session()
+        new_user = User(name=name, email=email, photo=buffer.tobytes())
+        session.add(new_user)
+        session.commit()
+        session.close()
+
+        return {"message": f"Successfully registered user: {name}"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Registration failed: {str(e)}")
+
+@app.get("/authenticate")
+async def authenticate():
+    try:
+        frame = get_latest_frame()
+        if frame is None:
+            raise HTTPException(status_code=500, detail="Camera frame not available")
+
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        face_locations = face_recognition.face_locations(rgb_frame)
+        if not face_locations:
+            return {"status": "No face detected"}
+
+        face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
+        session = Session()
+        users = session.query(User).all()
+
+        for user in users:
+            stored_img = cv2.imdecode(np.frombuffer(user.photo, np.uint8), cv2.IMREAD_COLOR)
+            stored_rgb = cv2.cvtColor(stored_img, cv2.COLOR_BGR2RGB)
+            stored_encodings = face_recognition.face_encodings(stored_rgb)
+            if not stored_encodings:
+                continue
+
+            for face_encoding in face_encodings:
+                if face_recognition.compare_faces([stored_encodings[0]], face_encoding, tolerance=0.6)[0]:
+                    _, live_buf = cv2.imencode('.jpg', frame)
+                    login_record = LoginHistory(
+                        user_id=user.id,
+                        name=user.name,
+                        registered_image=user.photo,
+                        live_capture=live_buf.tobytes(),
+                        status="Granted"
+                    )
+                    session.add(login_record)
+                    session.commit()
+                    session.close()
+                    return {"status": "Access Granted", "user": user.name}
+
+        _, live_buf = cv2.imencode('.jpg', frame)
+        login_record = LoginHistory(
+            user_id=0,
+            name="Unknown",
+            registered_image=b"",
+            live_capture=live_buf.tobytes(),
+            status="Denied"
+        )
+        session.add(login_record)
+        session.commit()
+        session.close()
+        return {"status": "Access Denied - Unauthorized"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/history")
+async def get_login_history():
+    try:
+        session = Session()
+        records = session.query(LoginHistory).order_by(LoginHistory.login_time.desc()).all()
+        response = []
+        for r in records:
+            response.append({
+                "id": r.id,
+                "name": r.name,
+                "login_time": r.login_time,
+                "status": r.status,
+                "registered_image": base64.b64encode(r.registered_image).decode('utf-8') if r.registered_image else "",
+                "live_capture": base64.b64encode(r.live_capture).decode('utf-8')
+            })
+        session.close()
+        return response
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ─── Run App ──────────────────────────────────────────────────
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)
