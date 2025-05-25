@@ -49,6 +49,31 @@ USER_MAPPING_PATH = "user_mapping.pkl"
 FACE_DISTANCE_THRESHOLD = 0.6  # Threshold for face matching
 BATCH_SIZE = 100  # Number of images to process in batch registration
 
+class Camera(Base):
+    __tablename__ = 'cameras'
+    
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), nullable=False)
+    ip = Column(String(100), nullable=False)
+    port = Column(Integer, nullable=False)
+    username = Column(String(100), nullable=False)
+    password = Column(String(100), nullable=False)
+    rtsp_url = Column(String(200), nullable=False)
+    is_active = Column(Integer, default=1)  # 1 for active, 0 for inactive
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "ip": self.ip,
+            "port": self.port,
+            "username": self.username,
+            "rtsp_url": self.rtsp_url,
+            "is_active": bool(self.is_active),
+            "created_at": self.created_at.isoformat() if self.created_at else None
+        }
+
 class User(Base):
     __tablename__ = 'users'
     
@@ -274,6 +299,10 @@ async def login_page(request: Request):
 @app.get("/history", response_class=HTMLResponse)
 async def history_page(request: Request):
     return templates.TemplateResponse("history.html", {"request": request})
+
+@app.get("/cameras", response_class=HTMLResponse)
+async def cameras_page(request: Request):
+    return templates.TemplateResponse("cameras.html", {"request": request})
 
 @app.get("/video_feed")
 async def video_feed():
@@ -719,6 +748,137 @@ async def get_system_metrics():
         logger.error(f"Error getting system metrics: {str(e)}")
         logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
+
+# Camera Management Endpoints
+class CameraCreate(BaseModel):
+    name: str
+    ip: str
+    port: int
+    username: str
+    password: str
+
+@app.post("/api/cameras")
+async def add_camera(camera: CameraCreate):
+    """Add a new camera to the system"""
+    try:
+        session = Session()
+        
+        # Construct RTSP URL
+        rtsp_url = f"rtsp://{camera.username}:{camera.password}@{camera.ip}:{camera.port}/channel=1/subtype=0"
+        
+        # Test camera connection
+        cap = cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
+        if not cap.isOpened():
+            raise HTTPException(status_code=400, detail="Could not connect to camera. Please check the credentials and connection.")
+        cap.release()
+        
+        # Create new camera
+        new_camera = Camera(
+            name=camera.name,
+            ip=camera.ip,
+            port=camera.port,
+            username=camera.username,
+            password=camera.password,
+            rtsp_url=rtsp_url
+        )
+        
+        session.add(new_camera)
+        session.commit()
+        
+        logger.info(f"Added new camera: {camera.name}")
+        return new_camera.to_dict()
+        
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Error adding camera: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        session.close()
+
+@app.get("/api/cameras")
+async def get_cameras():
+    """Get list of all configured cameras"""
+    try:
+        session = Session()
+        cameras = session.query(Camera).all()
+        return [camera.to_dict() for camera in cameras]
+    except Exception as e:
+        logger.error(f"Error getting cameras: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        session.close()
+
+@app.delete("/api/cameras/{camera_id}")
+async def delete_camera(camera_id: int):
+    """Delete a camera configuration"""
+    try:
+        session = Session()
+        camera = session.query(Camera).filter(Camera.id == camera_id).first()
+        
+        if not camera:
+            raise HTTPException(status_code=404, detail="Camera not found")
+            
+        session.delete(camera)
+        session.commit()
+        
+        logger.info(f"Deleted camera: {camera.name}")
+        return {"message": f"Camera {camera.name} deleted successfully"}
+        
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Error deleting camera: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        session.close()
+
+@app.put("/api/cameras/{camera_id}")
+async def update_camera(camera_id: int, camera: CameraCreate):
+    """Update camera configuration"""
+    try:
+        session = Session()
+        existing_camera = session.query(Camera).filter(Camera.id == camera_id).first()
+        
+        if not existing_camera:
+            raise HTTPException(status_code=404, detail="Camera not found")
+            
+        # Construct new RTSP URL
+        rtsp_url = f"rtsp://{camera.username}:{camera.password}@{camera.ip}:{camera.port}/channel=1/subtype=0"
+        
+        # Test new camera connection
+        cap = cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
+        if not cap.isOpened():
+            raise HTTPException(status_code=400, detail="Could not connect to camera with new settings")
+        cap.release()
+        
+        # Update camera settings
+        existing_camera.name = camera.name
+        existing_camera.ip = camera.ip
+        existing_camera.port = camera.port
+        existing_camera.username = camera.username
+        existing_camera.password = camera.password
+        existing_camera.rtsp_url = rtsp_url
+        
+        session.commit()
+        
+        logger.info(f"Updated camera: {camera.name}")
+        return existing_camera.to_dict()
+        
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Error updating camera: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        session.close()
 
 # ─── Run App ──────────────────────────────────────────────────
 if __name__ == "__main__":

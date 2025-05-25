@@ -3,27 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Camera Management</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <title>Camera Management - AI Login</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        .camera-entry {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px;
-            border-bottom: 1px solid #eee;
+        .camera-card {
+            margin-bottom: 20px;
         }
-        .camera-entry:last-child {
-            border-bottom: none;
+        .camera-status {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+        .status-active {
+            background-color: #28a745;
+        }
+        .status-inactive {
+            background-color: #dc3545;
         }
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-light bg-light">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="/">FaceAuth</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">AI Login</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
@@ -37,11 +42,11 @@
                     <li class="nav-item">
                         <a class="nav-link" href="/login">Login</a>
                     </li>
-                     <li class="nav-item">
+                    <li class="nav-item">
                         <a class="nav-link" href="/history">History</a>
                     </li>
-                     <li class="nav-item">
-                        <a class="nav-link active" aria-current="page" href="/cameras">Cameras</a>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/cameras">Cameras</a>
                     </li>
                 </ul>
             </div>
@@ -49,98 +54,107 @@
     </nav>
 
     <div class="container mt-4">
-        <h1 class="mb-4">Camera Management</h1>
-
+        <h2>Camera Management</h2>
+        
+        <!-- Add Camera Form -->
         <div class="card mb-4">
-            <div class="card-header">Add New Camera</div>
+            <div class="card-header">
+                <h5 class="mb-0">Add New Camera</h5>
+            </div>
             <div class="card-body">
                 <form id="addCameraForm">
-                    <div class="mb-3">
-                        <label for="cameraId" class="form-label">Camera ID</label>
-                        <input type="text" class="form-control" id="cameraId" required>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="cameraName" class="form-label">Camera Name</label>
+                            <input type="text" class="form-control" id="cameraName" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="cameraIp" class="form-label">IP Address</label>
+                            <input type="text" class="form-control" id="cameraIp" required>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label for="rtspUrl" class="form-label">RTSP URL</label>
-                        <input type="text" class="form-control" id="rtspUrl" required>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="cameraPort" class="form-label">Port</label>
+                            <input type="number" class="form-control" id="cameraPort" required>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="cameraUsername" class="form-label">Username</label>
+                            <input type="text" class="form-control" id="cameraUsername" required>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="cameraPassword" class="form-label">Password</label>
+                            <input type="password" class="form-control" id="cameraPassword" required>
+                        </div>
                     </div>
                     <button type="submit" class="btn btn-primary">Add Camera</button>
                 </form>
             </div>
         </div>
 
-        <div class="card">
-            <div class="card-header">Configured Cameras</div>
-            <div class="card-body">
-                <div id="cameraList">
-                    <!-- Camera entries will be loaded here by JavaScript -->
-                    <div class="text-center text-muted">Loading cameras...</div>
+        <!-- Camera List -->
+        <div class="row" id="cameraList">
+            <!-- Cameras will be loaded here -->
+        </div>
+    </div>
+
+    <!-- Edit Camera Modal -->
+    <div class="modal fade" id="editCameraModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Camera</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editCameraForm">
+                        <input type="hidden" id="editCameraId">
+                        <div class="mb-3">
+                            <label for="editCameraName" class="form-label">Camera Name</label>
+                            <input type="text" class="form-control" id="editCameraName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editCameraIp" class="form-label">IP Address</label>
+                            <input type="text" class="form-control" id="editCameraIp" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editCameraPort" class="form-label">Port</label>
+                            <input type="number" class="form-control" id="editCameraPort" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editCameraUsername" class="form-label">Username</label>
+                            <input type="text" class="form-control" id="editCameraUsername" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="editCameraPassword" class="form-label">Password</label>
+                            <input type="password" class="form-control" id="editCameraPassword" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="saveEditCamera">Save changes</button>
                 </div>
             </div>
         </div>
-
-        <div id="statusMessage" class="mt-3" style="display: none;"></div>
-
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        const addCameraForm = document.getElementById('addCameraForm');
-        const cameraListDiv = document.getElementById('cameraList');
-        const statusMessageDiv = document.getElementById('statusMessage');
+        // Load cameras on page load
+        document.addEventListener('DOMContentLoaded', loadCameras);
 
-        // Helper function to show status messages
-        function showStatus(message, type) {
-            statusMessageDiv.innerHTML = message;
-            statusMessageDiv.className = `mt-3 alert alert-${type}`;
-            statusMessageDiv.style.display = 'block';
-             statusMessageDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-
-        // Function to load cameras from the backend
-        async function loadCameras() {
-            cameraListDiv.innerHTML = '<div class="text-center text-muted">Loading cameras...</div>';
-            try {
-                const response = await fetch('/api/cameras');
-                const cameras = await response.json();
-
-                cameraListDiv.innerHTML = ''; // Clear loading message
-                if (Object.keys(cameras).length === 0) {
-                    cameraListDiv.innerHTML = '<div class="text-center text-muted">No cameras configured yet.</div>';
-                } else {
-                    for (const [id, url] of Object.entries(cameras)) {
-                        const cameraEntry = document.createElement('div');
-                        cameraEntry.className = 'camera-entry';
-                        cameraEntry.innerHTML = `
-                            <div>
-                                <strong>${id}:</strong> ${url}
-                            </div>
-                            <div>
-                                <button class="btn btn-danger btn-sm delete-camera" data-camera-id="${id}">
-                                    <i class="bi bi-trash"></i> Delete
-                                </button>
-                            </div>
-                        `;
-                        cameraListDiv.appendChild(cameraEntry);
-                    }
-                     // Add event listeners for delete buttons
-                    document.querySelectorAll('.delete-camera').forEach(button => {
-                        button.addEventListener('click', handleDeleteCamera);
-                    });
-                }
-            } catch (error) {
-                console.error('Error loading cameras:', error);
-                cameraListDiv.innerHTML = '<div class="text-center text-danger">Error loading cameras.</div>';
-            }
-        }
-
-        // Function to handle adding a new camera
-        addCameraForm.addEventListener('submit', async function(event) {
-            event.preventDefault();
-
-            const cameraId = document.getElementById('cameraId').value;
-            const rtspUrl = document.getElementById('rtspUrl').value;
-
-            showStatus('Adding camera...', 'info');
+        // Add camera form submission
+        document.getElementById('addCameraForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const camera = {
+                name: document.getElementById('cameraName').value,
+                ip: document.getElementById('cameraIp').value,
+                port: parseInt(document.getElementById('cameraPort').value),
+                username: document.getElementById('cameraUsername').value,
+                password: document.getElementById('cameraPassword').value
+            };
 
             try {
                 const response = await fetch('/api/cameras', {
@@ -148,57 +162,143 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ camera_id: cameraId, rtsp_url: rtspUrl })
+                    body: JSON.stringify(camera)
                 });
 
-                const result = await response.json();
-
                 if (response.ok) {
-                    showStatus(result.message, 'success');
-                    addCameraForm.reset();
-                    loadCameras(); // Reload the list after adding
+                    alert('Camera added successfully!');
+                    document.getElementById('addCameraForm').reset();
+                    loadCameras();
                 } else {
-                    showStatus(`Error adding camera: ${result.detail || JSON.stringify(result)}`, 'danger');
+                    const error = await response.json();
+                    alert(`Error: ${error.detail}`);
                 }
             } catch (error) {
-                console.error('Error adding camera:', error);
-                showStatus('An error occurred while adding the camera.', 'danger');
+                alert('Error adding camera: ' + error.message);
             }
         });
 
-        // Function to handle deleting a camera
-        async function handleDeleteCamera(event) {
-            const cameraId = event.target.dataset.cameraId;
-            if (!confirm(`Are you sure you want to delete camera "${cameraId}"?`)) {
+        // Load cameras
+        async function loadCameras() {
+            try {
+                const response = await fetch('/api/cameras');
+                const cameras = await response.json();
+                
+                const cameraList = document.getElementById('cameraList');
+                cameraList.innerHTML = '';
+                
+                cameras.forEach(camera => {
+                    const card = createCameraCard(camera);
+                    cameraList.appendChild(card);
+                });
+            } catch (error) {
+                console.error('Error loading cameras:', error);
+            }
+        }
+
+        // Create camera card
+        function createCameraCard(camera) {
+            const col = document.createElement('div');
+            col.className = 'col-md-6 col-lg-4';
+            
+            col.innerHTML = `
+                <div class="card camera-card">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <span class="camera-status ${camera.is_active ? 'status-active' : 'status-inactive'}"></span>
+                            ${camera.name}
+                        </h5>
+                        <p class="card-text">
+                            <strong>IP:</strong> ${camera.ip}<br>
+                            <strong>Port:</strong> ${camera.port}<br>
+                            <strong>Username:</strong> ${camera.username}
+                        </p>
+                        <div class="btn-group">
+                            <button class="btn btn-sm btn-primary" onclick="editCamera(${camera.id})">Edit</button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteCamera(${camera.id})">Delete</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            return col;
+        }
+
+        // Edit camera
+        async function editCamera(cameraId) {
+            try {
+                const response = await fetch(`/api/cameras/${cameraId}`);
+                const camera = await response.json();
+                
+                document.getElementById('editCameraId').value = camera.id;
+                document.getElementById('editCameraName').value = camera.name;
+                document.getElementById('editCameraIp').value = camera.ip;
+                document.getElementById('editCameraPort').value = camera.port;
+                document.getElementById('editCameraUsername').value = camera.username;
+                document.getElementById('editCameraPassword').value = camera.password;
+                
+                const modal = new bootstrap.Modal(document.getElementById('editCameraModal'));
+                modal.show();
+            } catch (error) {
+                alert('Error loading camera details: ' + error.message);
+            }
+        }
+
+        // Save edited camera
+        document.getElementById('saveEditCamera').addEventListener('click', async () => {
+            const cameraId = document.getElementById('editCameraId').value;
+            const camera = {
+                name: document.getElementById('editCameraName').value,
+                ip: document.getElementById('editCameraIp').value,
+                port: parseInt(document.getElementById('editCameraPort').value),
+                username: document.getElementById('editCameraUsername').value,
+                password: document.getElementById('editCameraPassword').value
+            };
+
+            try {
+                const response = await fetch(`/api/cameras/${cameraId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(camera)
+                });
+
+                if (response.ok) {
+                    alert('Camera updated successfully!');
+                    bootstrap.Modal.getInstance(document.getElementById('editCameraModal')).hide();
+                    loadCameras();
+                } else {
+                    const error = await response.json();
+                    alert(`Error: ${error.detail}`);
+                }
+            } catch (error) {
+                alert('Error updating camera: ' + error.message);
+            }
+        });
+
+        // Delete camera
+        async function deleteCamera(cameraId) {
+            if (!confirm('Are you sure you want to delete this camera?')) {
                 return;
             }
-
-             showStatus(`Deleting camera "${cameraId}"...`, 'info');
 
             try {
                 const response = await fetch(`/api/cameras/${cameraId}`, {
                     method: 'DELETE'
                 });
 
-                 const result = await response.json();
-
                 if (response.ok) {
-                    showStatus(result.message, 'success');
-                    loadCameras(); // Reload the list after deleting
+                    alert('Camera deleted successfully!');
+                    loadCameras();
                 } else {
-                    showStatus(`Error deleting camera: ${result.detail || JSON.stringify(result)}`, 'danger');
+                    const error = await response.json();
+                    alert(`Error: ${error.detail}`);
                 }
-
             } catch (error) {
-                console.error('Error deleting camera:', error);
-                showStatus('An error occurred while deleting the camera.', 'danger');
+                alert('Error deleting camera: ' + error.message);
             }
         }
-
-
-        // Load cameras when the page loads
-        loadCameras();
-
     </script>
 </body>
 </html> 
